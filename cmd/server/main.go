@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/vladomdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/vladomdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/vladomdev/learn-pub-sub-starter/internal/routing"
 )
@@ -38,11 +37,42 @@ func main() {
 		log.Fatalf("Failed to publish message to Exchange: %v", err)
 	}
 
-	// wait for ctrl+c
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
-	<-sigChan
-	signal.Stop(sigChan)
-	close(sigChan)
-	fmt.Println("\nShutting down Peril server...")
+	// Print available commands for users
+	gamelogic.PrintServerHelp()
+
+	// Get user input
+	for {
+		userInput := gamelogic.GetInput()
+		if len(userInput) == 0 {
+			continue
+		}
+		if userInput[0] == "pause" {
+			fmt.Println("\nPausing the game.")
+			playingState.IsPaused = true
+			err = pubsub.PublishJSON(rbtChannel, routing.ExchangePerilDirect, routing.PauseKey, playingState)
+			if err != nil {
+				log.Fatalf("Failed to publish message to Exchange: %v", err)
+			}
+			continue
+		}
+		if userInput[0] == "resume" {
+			fmt.Println("\nResuming the game.")
+			playingState.IsPaused = false
+			err = pubsub.PublishJSON(rbtChannel, routing.ExchangePerilDirect, routing.PauseKey, playingState)
+			if err != nil {
+				log.Fatalf("Failed to publish message to Exchange: %v", err)
+			}
+			continue
+		}
+		if userInput[0] == "quit" {
+			fmt.Println("Shutting down Peril server...")
+			break
+		}
+		if userInput[0] == "help" {
+			gamelogic.PrintServerHelp()
+			continue
+		}
+		fmt.Println("\nCommand not understood. Please enter a valid command. Use 'help' to list valid commands.")
+		continue
+	}
 }
